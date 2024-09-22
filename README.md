@@ -1,6 +1,6 @@
 # AuthKit Remix Library (that works with Cloudflare)
 
-### This is a fork of https://github.com/workos-inc/authkit-remix, to make it compatible with workers runtime. 
+### This is a fork of https://github.com/supermemory/authkit-remix-cloudflare, to make it compatible with workers runtime. 
 
 Reason: We had some projects where we wanted to use authkit with remix, but we are using cloudflare for deployment. 
 
@@ -85,7 +85,7 @@ Use `authkitLoader` to configure AuthKit for your Remix application routes.
 
 ```tsx
 import type { LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { authkitLoader } from '@workos-inc/authkit-remix';
+import { authkitLoader } from '@supermemory/authkit-remix-cloudflare';
 
 export const loader = (args: LoaderFunctionArgs) => authkitLoader(args);
 
@@ -199,7 +199,7 @@ const session = await getSessionFromRequest(request, context);
 To enable debug logs, pass in the debug flag when using `authkitLoader`.
 
 ```ts
-import { authkitLoader } from '@workos-inc/authkit-remix';
+import { authkitLoader } from '@supermemory/authkit-remix-cloudflare';
 
 export const loader = (args: LoaderFunctionArgs) => authkitLoader(args, { debug: true });
 ```
@@ -207,7 +207,7 @@ export const loader = (args: LoaderFunctionArgs) => authkitLoader(args, { debug:
 If providing a loader function, you can pass the options object as the third parameter
 
 ```ts
-import { authkitLoader } from '@workos-inc/authkit-remix';
+import { authkitLoader } from '@supermemory/authkit-remix-cloudflare';
 
 export const loader = (args: LoaderFunctionArgs) =>
   authkitLoader(
