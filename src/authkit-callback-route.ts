@@ -1,24 +1,32 @@
 import { HandleAuthOptions } from './interfaces.js';
-import { WORKOS_CLIENT_ID } from './env-variables.js';
-import { workos } from './workos.js';
+import { getWorkos } from './workos.js';
 import { encryptSession } from './session.js';
-import { getSession, commitSession, cookieName } from './cookie.js';
-import { redirect, json, LoaderFunctionArgs } from '@remix-run/node';
+import { redirect, json } from '@remix-run/cloudflare';
+import { validateEnv } from './validate-env.js';
+import { getCookieFunctions } from './cookie.js';
+import { ArgsWithContext, cookieName } from './type.js';
 
 export function authLoader(options: HandleAuthOptions = {}) {
-  return async function loader({ request }: LoaderFunctionArgs) {
+  return async function loader({ request, context }: ArgsWithContext) {
     const { returnPathname: returnPathnameOption = '/' } = options;
 
     const url = new URL(request.url);
+
+    validateEnv(context.env);
 
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     let returnPathname = state ? JSON.parse(atob(state)).returnPathname : null;
 
+    const { getSession, commitSession, destroySession } = getCookieFunctions(context);
+
+
+    const workos = getWorkos(context);
+    
     if (code) {
       try {
         const { accessToken, refreshToken, user, impersonator } = await workos.userManagement.authenticateWithCode({
-          clientId: WORKOS_CLIENT_ID,
+          clientId: context.env.WORKOS_CLIENT_ID,
           code,
         });
 
@@ -48,8 +56,9 @@ export function authLoader(options: HandleAuthOptions = {}) {
           refreshToken,
           user,
           impersonator,
-          headers: {},
-        });
+          headers: {}
+        }, context);
+
 
         const session = await getSession(cookieName);
 
