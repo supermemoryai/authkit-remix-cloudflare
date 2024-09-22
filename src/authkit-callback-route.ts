@@ -1,32 +1,36 @@
 import { HandleAuthOptions } from './interfaces.js';
 import { getWorkos } from './workos.js';
 import { encryptSession } from './session.js';
-import { redirect, json } from '@remix-run/cloudflare';
+import { redirect, json , LoaderFunctionArgs} from '@remix-run/cloudflare';
 import { validateEnv } from './validate-env.js';
 import { getCookieFunctions } from './cookie.js';
-import { ArgsWithContext, cookieName } from './type.js';
+import { cookieName } from './type.js';
 
 export function authLoader(options: HandleAuthOptions = {}) {
-  return async function loader({ request, context }: ArgsWithContext) {
+  return async function loader({ request, context }: LoaderFunctionArgs) {
     const { returnPathname: returnPathnameOption = '/' } = options;
 
     const url = new URL(request.url);
 
-    validateEnv(context.env);
+    validateEnv(context.cloudflare.env);
+
+    if (!context.cloudflare.env) {
+      throw new Error('WORKOS_API_KEY, WORKOS_CLIENT_ID, WORKOS_COOKIE_MAX_AGE, WORKOS_COOKIE_PASSWORD, and WORKOS_REDIRECT_URI must be set in the environment variables');
+    }
 
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     let returnPathname = state ? JSON.parse(atob(state)).returnPathname : null;
 
-    const { getSession, commitSession, destroySession } = getCookieFunctions(context);
+    const { getSession, commitSession } = getCookieFunctions(context);
 
 
     const workos = getWorkos(context);
-    
+
     if (code) {
       try {
         const { accessToken, refreshToken, user, impersonator } = await workos.userManagement.authenticateWithCode({
-          clientId: context.env.WORKOS_CLIENT_ID,
+          clientId: (context.cloudflare.env as Record<string, string>).WORKOS_CLIENT_ID,
           code,
         });
 

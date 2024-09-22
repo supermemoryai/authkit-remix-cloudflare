@@ -13,6 +13,9 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "alwaysStrict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": [
+      "@remix-run/cloudflare"
+  ],
   }
 }

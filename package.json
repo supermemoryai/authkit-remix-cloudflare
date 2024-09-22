@@ -1,7 +1,12 @@
 {
-  "name": "@workos-inc/authkit-remix",
-  "version": "0.4.0",
-  "description": "Authentication and session helpers for using WorkOS & AuthKit with Remix",
+  "name": "@supermemory/authkit-remix-cloudflare",
+  "version": "0.0.10",
+  "author": {
+    "name": "Dhravya Shah",
+    "email": "dhravya@supermemory.ai",
+    "url": "https://github.com/dhravya"
+  },
+  "description": "Cloudflare-Compatible auth and session helpers for using WorkOS & AuthKit with Remix",
   "sideEffects": false,
   "type": "commonjs",
   "main": "./dist/cjs/index.js",
@@ -21,12 +26,12 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@remix-run/cloudflare": "^2.12.1",
     "@workos-inc/node": "^7.10.0",
     "iron-session": "^8.0.1",
     "jose": "^5.2.3"
   },
   "peerDependencies": {
-    "@remix-run/node": "^2.4.1",
     "react": "^18.2.0"
   },
   "devDependencies": {

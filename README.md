@@ -1,4 +1,15 @@
-# AuthKit Remix Library
+# AuthKit Remix Library (that works with Cloudflare)
+
+### This is a fork of https://github.com/workos-inc/authkit-remix, to make it compatible with workers runtime. 
+
+Reason: We had some projects where we wanted to use authkit with remix, but we are using cloudflare for deployment. 
+
+The reason it didn't work was because the library was using `@remix-run/node` and using environment variables from `process.env` instead of `context.env`. 
+
+So, I simply forked it and made the changes to make it compatible with cloudflare. 
+
+--- 
+
 
 The AuthKit library for Remix provides convenient helpers for authentication and session management using WorkOS & AuthKit with Remix. You can find this library in action in the [remix-authkit-example](https://github.com/workos/remix-authkit-example) repo.
 
@@ -7,18 +18,18 @@ The AuthKit library for Remix provides convenient helpers for authentication and
 Install the package with:
 
 ```
-npm i @workos-inc/authkit-remix
+npm i @supermemory/authkit-remix-cloudflare
 ```
 
 or
 
 ```
-yarn add @workos-inc/authkit-remix
+yarn add @supermemory/authkit-remix-cloudflare
 ```
 
 ## Pre-flight
 
-Make sure the following values are present in your `.env.local` environment variables file. The client ID and API key can be found in the [WorkOS dashboard](https://dashboard.workos.com), and the redirect URI can also be configured there.
+Make sure the following values are present in your `.dev.vars` environment variables file. The client ID and API key can be found in the [WorkOS dashboard](https://dashboard.workos.com), and the redirect URI can also be configured there.
 
 ```sh
 WORKOS_CLIENT_ID="client_..." # retrieved from the WorkOS dashboard
@@ -53,7 +64,7 @@ WORKOS_API_PORT=5173 # port to use for API calls
 AuthKit requires that you have a callback URL to redirect users back to after they've authenticated. In your Remix app, [create a new route](https://remix.run/docs/en/main/discussion/routes) and add the following:
 
 ```ts
-import { authLoader } from '@workos-inc/authkit-remix';
+import { authLoader } from '@supermemory/authkit-remix-cloudflare';
 
 export const loader = authLoader();
 ```
@@ -93,18 +104,18 @@ For pages where you want to display a signed-in and signed-out view, use `authki
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
 import { Form, Link, useLoaderData } from '@remix-run/react';
-import { getSignInUrl, getSignUpUrl, signOut, authkitLoader } from '@workos-inc/authkit-remix';
+import { getSignInUrl, getSignUpUrl, signOut, authkitLoader } from '@supermemory/authkit-remix-cloudflare';
 
 export const loader = (args: LoaderFunctionArgs) =>
-  authkitLoader(args, async ({ request, auth }) => {
+  authkitLoader(args, async ({ request, auth, context }) => {
     return json({
       signInUrl: await getSignInUrl(),
       signUpUrl: await getSignUpUrl(),
     });
   });
 
-export async function action({ request }: ActionFunctionArgs) {
-  return await signOut(request);
+export async function action({ request, context }: ActionFunctionArgs) {
+  return await signOut(request, context);
 }
 
 export default function HomePage() {
@@ -152,7 +163,7 @@ Sometimes it is useful to obtain the access token directly, for instance to make
 ```tsx
 import type { LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
-import { authkitLoader } from '@workos-inc/authkit-remix';
+import { authkitLoader } from '@supermemory/authkit-remix-cloudflare';
 
 export const loader = (args: LoaderFunctionArgs) =>
   authkitLoader(args, async ({ auth }) => {
@@ -173,6 +184,15 @@ export const loader = (args: LoaderFunctionArgs) =>
     });
   });
 ```
+
+[addition]
+### Getting the current session from loader or action using `request`
+
+Apart from the ones by workos, I have also added this function to help get the current session from loader or action using `request` and `context`
+
+```ts
+const session = await getSessionFromRequest(request, context);
+``` 
 
 ### Debugging
 

@@ -1,20 +1,24 @@
 import { json, redirect } from '@remix-run/cloudflare';
-import type { SessionData, TypedResponse } from '@remix-run/cloudflare';
+import type { AppLoadContext, LoaderFunctionArgs, SessionData, TypedResponse } from '@remix-run/cloudflare';
 import type { AccessToken, AuthorizedData, UnauthorizedData, AuthKitLoaderOptions, Session } from './interfaces.js';
 import { getAuthorizationUrl } from './get-authorization-url.js';
 import { getWorkos } from './workos.js';
 
 import { sealData, unsealData } from 'iron-session';
 import { jwtVerify, createRemoteJWKSet, decodeJwt } from 'jose';
-import { ArgsWithContext } from './type.js';
 import { getCookieFunctions } from './cookie.js';
 
-const getJWKs = (context: ArgsWithContext['context']) => {
+const getJWKs = (context: AppLoadContext) => {
+
+  if (!context.cloudflare.env) {
+    throw new Error('WORKOS_API_KEY, WORKOS_CLIENT_ID, WORKOS_COOKIE_MAX_AGE, WORKOS_COOKIE_PASSWORD, and WORKOS_REDIRECT_URI must be set in the environment variables');
+  }
+
   const workos = getWorkos(context);
-  return createRemoteJWKSet(new URL(workos.userManagement.getJwksUrl(context.env.WORKOS_CLIENT_ID)));
+  return createRemoteJWKSet(new URL(workos.userManagement.getJwksUrl((context.cloudflare.env as Record<string, string>).WORKOS_CLIENT_ID)));
 }
 
-async function updateSession(request: Request, debug: boolean, context: ArgsWithContext['context']) {
+async function updateSession(request: Request, debug: boolean, context: AppLoadContext) {
   const session = await getSessionFromCookie(request.headers.get('Cookie') as string, context);
 
   // If no session, just continue
@@ -35,9 +39,13 @@ async function updateSession(request: Request, debug: boolean, context: ArgsWith
   try {
     if (debug) console.log('Session invalid. Attempting refresh', session.refreshToken);
 
+    if (!context.cloudflare.env) {
+      throw new Error('WORKOS_API_KEY, WORKOS_CLIENT_ID, WORKOS_COOKIE_MAX_AGE, WORKOS_COOKIE_PASSWORD, and WORKOS_REDIRECT_URI must be set in the environment variables');
+    }
+
     // If the session is invalid (i.e. the access token has expired) attempt to re-authenticate with the refresh token
     const { accessToken, refreshToken } = await workos.userManagement.authenticateWithRefreshToken({
-      clientId: context.env.WORKOS_CLIENT_ID,
+      clientId: (context.cloudflare.env as Record<string, string>).WORKOS_CLIENT_ID,
       refreshToken: session.refreshToken,
     });
 
@@ -73,43 +81,46 @@ async function updateSession(request: Request, debug: boolean, context: ArgsWith
   }
 }
 
-async function encryptSession(session: Session, context: ArgsWithContext['context']) {
-  return sealData(session, { password: context.env.WORKOS_COOKIE_PASSWORD });
+async function encryptSession(session: Session, context: AppLoadContext) {
+  if (!context.cloudflare.env) {
+    throw new Error('WORKOS_API_KEY, WORKOS_CLIENT_ID, WORKOS_COOKIE_MAX_AGE, WORKOS_COOKIE_PASSWORD, and WORKOS_REDIRECT_URI must be set in the environment variables');
+  }
+  return sealData(session, { password:( context.cloudflare.env as Record<string, string>).WORKOS_COOKIE_PASSWORD });
 }
 
 type LoaderValue<Data> = Response | TypedResponse<Data> | NonNullable<Data> | null;
 type LoaderReturnValue<Data> = Promise<LoaderValue<Data>> | LoaderValue<Data>;
 
 type AuthLoader<Data> = (
-  args: ArgsWithContext & { auth: AuthorizedData | UnauthorizedData },
+  args: LoaderFunctionArgs & { auth: AuthorizedData | UnauthorizedData },
 ) => LoaderReturnValue<Data>;
 
-type AuthorizedAuthLoader<Data> = (args: ArgsWithContext & { auth: AuthorizedData }) => LoaderReturnValue<Data>;
+type AuthorizedAuthLoader<Data> = (args: LoaderFunctionArgs & { auth: AuthorizedData }) => LoaderReturnValue<Data>;
 
 async function authkitLoader(
-  loaderArgs: ArgsWithContext,
+  loaderArgs: LoaderFunctionArgs,
   options: AuthKitLoaderOptions & { ensureSignedIn: true },
 ): Promise<TypedResponse<AuthorizedData>>;
 
 async function authkitLoader(
-  loaderArgs: ArgsWithContext,
+  loaderArgs: LoaderFunctionArgs,
   options?: AuthKitLoaderOptions,
 ): Promise<TypedResponse<AuthorizedData | UnauthorizedData>>;
 
 async function authkitLoader<Data = unknown>(
-  loaderArgs: ArgsWithContext,
+  loaderArgs: LoaderFunctionArgs,
   loader: AuthorizedAuthLoader<Data>,
   options: AuthKitLoaderOptions & { ensureSignedIn: true },
 ): Promise<TypedResponse<Data & AuthorizedData>>;
 
 async function authkitLoader<Data = unknown>(
-  loaderArgs: ArgsWithContext,
+  loaderArgs: LoaderFunctionArgs,
   loader: AuthLoader<Data>,
   options?: AuthKitLoaderOptions,
 ): Promise<TypedResponse<Data & (AuthorizedData | UnauthorizedData)>>;
 
 async function authkitLoader<Data = unknown>(
-  loaderArgs: ArgsWithContext,
+  loaderArgs: LoaderFunctionArgs,
   loaderOrOptions?: AuthLoader<Data> | AuthorizedAuthLoader<Data> | AuthKitLoaderOptions,
   options: AuthKitLoaderOptions = {},
 ) {
@@ -119,7 +130,7 @@ async function authkitLoader<Data = unknown>(
   const { request, context } = loaderArgs;
   const session = await updateSession(request, debug, context);
 
-  const { getSession, commitSession, destroySession } = getCookieFunctions(loaderArgs.context);
+  const { getSession, destroySession } = getCookieFunctions(loaderArgs.context);
 
   if (!session) {
     if (ensureSignedIn) {
@@ -172,7 +183,7 @@ async function authkitLoader<Data = unknown>(
 
 async function handleAuthLoader(
   loader: AuthLoader<unknown> | AuthorizedAuthLoader<unknown> | undefined,
-  args: ArgsWithContext,
+  args: LoaderFunctionArgs,
   auth: AuthorizedData | UnauthorizedData,
   session?: Session,
 ) {
@@ -200,7 +211,7 @@ async function handleAuthLoader(
       newResponse.headers.append('Set-Cookie', session.headers['Set-Cookie']);
     }
 
-    // @ts-ignore
+    // @ts-expect-error - TODO: Fix this
     return json({ ...data, ...auth }, newResponse);
   }
 
@@ -208,9 +219,9 @@ async function handleAuthLoader(
   return json({ ...loaderResult, ...auth }, session ? { headers: { ...session.headers } } : undefined);
 }
 
-async function terminateSession(request: Request, context: ArgsWithContext['context']) {
+async function terminateSession(request: Request, context: AppLoadContext) {
 
-  const { getSession, commitSession, destroySession } = getCookieFunctions(context);
+  const { getSession, destroySession } = getCookieFunctions(context);
   const workos = getWorkos(context);
 
   const encryptedSession = await getSession(request.headers.get('Cookie'));
@@ -248,24 +259,32 @@ function getClaimsFromAccessToken(accessToken: string) {
   };
 }
 
-async function getSessionFromCookie(cookie: string, context: ArgsWithContext['context'], session?: SessionData) {
+async function getSessionFromCookie(cookie: string, context: AppLoadContext, session?: SessionData) {
 
   const { getSession } = getCookieFunctions(context);
 
   if (!session) {
     session = await getSession(cookie);
   }
+  if (!context.cloudflare.env) {
+    throw new Error('WORKOS_API_KEY, WORKOS_CLIENT_ID, WORKOS_COOKIE_MAX_AGE, WORKOS_COOKIE_PASSWORD, and WORKOS_REDIRECT_URI must be set in the environment variables');
+  }
 
   if (session.has('jwt')) {
     return unsealData<Session>(session.get('jwt'), {
-      password: context.env.WORKOS_COOKIE_PASSWORD,
+      password: (context.cloudflare.env as Record<string, string>).WORKOS_COOKIE_PASSWORD,
     });
   } else {
     return null;
   }
 }
 
-async function verifyAccessToken(accessToken: string, context: ArgsWithContext['context']) {
+export async function getSessionFromRequest(request: Request, context: AppLoadContext) {
+  const cookie = request.headers.get('Cookie') || '';
+  return getSessionFromCookie(cookie, context);
+}
+
+async function verifyAccessToken(accessToken: string, context: AppLoadContext) {
   try {
     await jwtVerify(accessToken, getJWKs(context));
     return true;
