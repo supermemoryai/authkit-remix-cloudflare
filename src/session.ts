@@ -229,7 +229,15 @@ async function terminateSession(request: Request, context: AppLoadContext) {
     request.headers.get('Cookie') as string,
     context,
     encryptedSession,
-  )) as Session;
+  ) ?? { accessToken: null }) as Session;
+
+  if (!accessToken) {
+    return redirect('/', {
+      headers: {
+        'Set-Cookie': await destroySession(encryptedSession),
+      },
+    });
+  }
 
   const { sessionId } = getClaimsFromAccessToken(accessToken);
 
