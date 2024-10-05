@@ -109,8 +109,8 @@ import { getSignInUrl, getSignUpUrl, signOut, authkitLoader } from '@supermemory
 export const loader = (args: LoaderFunctionArgs) =>
   authkitLoader(args, async ({ request, auth, context }) => {
     return json({
-      signInUrl: await getSignInUrl(),
-      signUpUrl: await getSignUpUrl(),
+      signInUrl: await getSignInUrl(context),
+      signUpUrl: await getSignUpUrl(context),
     });
   });
 
